@@ -1,45 +1,39 @@
 #!/usr/bin/env python3
-"""Pratt parser for expression parsing with operator precedence."""
-import sys, re
-
+"""Pratt parser — top-down operator precedence parsing."""
+import re
 class Token:
-    def __init__(self,type,value): self.type=type; self.value=value
-    def __repr__(self): return f"{self.type}({self.value})"
-
-def tokenize(expr):
+    def __init__(self,typ,val):self.typ=typ;self.val=val
+def tokenize(s):
     tokens=[]
-    for m in re.finditer(r"(\d+\.?\d*)|([+\-*/^()])|\s+", expr):
-        if m.group(1): tokens.append(Token("NUM",float(m.group(1))))
-        elif m.group(2): tokens.append(Token("OP",m.group(2)))
-    tokens.append(Token("EOF",None)); return tokens
-
-PREC={"+":(1,"L"),"-":(1,"L"),"*":(2,"L"),"/":(2,"L"),"^":(3,"R")}
-
-class PrattParser:
-    def __init__(self,tokens): self.tokens=tokens; self.pos=0
-    def peek(self): return self.tokens[self.pos]
-    def next(self): t=self.tokens[self.pos]; self.pos+=1; return t
-    def parse(self,min_bp=0):
-        t=self.next()
-        if t.type=="NUM": left=t.value
-        elif t.value=="-": left=-self.parse(100)
-        elif t.value=="(":
-            left=self.parse(0); self.next()  # consume )
-        else: raise SyntaxError(f"Unexpected {t}")
-        while self.peek().type=="OP" and self.peek().value in PREC:
-            op=self.peek().value; prec,assoc=PREC[op]
-            if prec<min_bp: break
-            self.next(); rbp=prec if assoc=="R" else prec+1
-            right=self.parse(rbp)
-            if op=="+": left+=right
-            elif op=="-": left-=right
-            elif op=="*": left*=right
-            elif op=="/": left/=right
-            elif op=="^": left=left**right
+    for m in re.finditer(r'\d+|[+\-*/()^]',s):
+        v=m.group()
+        if v.isdigit():tokens.append(Token("NUM",int(v)))
+        else:tokens.append(Token("OP",v))
+    tokens.append(Token("EOF",None));return tokens
+class Parser:
+    def __init__(self,tokens):self.tokens=tokens;self.pos=0
+    def peek(self):return self.tokens[self.pos]
+    def advance(self):t=self.tokens[self.pos];self.pos+=1;return t
+    def parse(self,rbp=0):
+        t=self.advance();left=self.nud(t)
+        while rbp<self.lbp(self.peek()):
+            t=self.advance();left=self.led(t,left)
         return left
-
-if __name__ == "__main__":
-    exprs=["2 + 3 * 4", "(2 + 3) * 4", "2 ^ 3 ^ 2", "10 - 3 - 2", "-5 + 3"]
-    for expr in exprs:
-        result=PrattParser(tokenize(expr)).parse()
-        print(f"  {expr:20s} = {result}")
+    def nud(self,t):
+        if t.typ=="NUM":return t.val
+        if t.val=="-":return -self.parse(70)
+        if t.val=="(":v=self.parse();self.advance();return v
+        raise SyntaxError(f"Unexpected: {t.val}")
+    def led(self,t,left):
+        bp={"+":(10,10),"-":(10,10),"*":(20,20),"/":(20,20),"^":(30,29)}
+        _,rbp=bp[t.val]
+        right=self.parse(rbp)
+        return {"+":left+right,"-":left-right,"*":left*right,"/":left/right,"^":left**right}[t.val]
+    def lbp(self,t):
+        if t.typ=="EOF" or t.val==")":return 0
+        return{"+":(10,10),"-":(10,10),"*":(20,20),"/":(20,20),"^":(30,29)}.get(t.val,(0,0))[0]
+def evaluate(expr):return Parser(tokenize(expr)).parse()
+def main():
+    for e in ["2+3*4","(2+3)*4","2^3^2","10-3-2"]:
+        print(f"{e} = {evaluate(e)}")
+if __name__=="__main__":main()
