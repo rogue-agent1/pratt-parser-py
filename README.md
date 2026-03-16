@@ -1,0 +1,1 @@
+# pratt-parser-py\n\nZero-dependency Python CLI.\n\n```bash\npython3 pratt_parser.py\n```\n
